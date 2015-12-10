@@ -1,74 +1,71 @@
 # -*- coding: utf-8 -*-
+import random
 import numpy as np
 import pandas as pd
-from sklearn import cluster, ensemble, cross_validation, metrics
+
+from sklearn import cluster, ensemble
 from sklearn.externals import joblib
 
-root_path='/home/mitya/Documents/CMake/mlschool/mlschool_01/'
-train_data = pd.read_csv(root_path + 'final_train.csv', sep=',')
-test_data = pd.read_csv(root_path + 'final_test.csv', sep=',')
-train_data_folder = 'train_dataset/'
-test_data_folder = 'test_dataset/'
-arrays_folder = 'arrays/'
-
-def get_random_subarray(arr, size=100):
-    perm = np.random.permutation(min(size, arr.shape[0]))
-    new_arr = None
-    for index in range(perm.shape[0]):
-        if index == 0:
-            new_arr = arr[perm[index]]
-        else:
-            new_arr = np.vstack((new_arr, arr[perm[index]]))
-    return new_arr
-        
 class bow:
-    model = None; clusters=50; filename = './bag_of_words.txt'
-    def __init__(self, n_clusters=50):
-        self.model = joblib.load(self.filename)
+
+    def __init__(self, filename, n_clusters = 50):
+
+        if filename != None:
+            self.model = joblib.load(filename)
+
+        self.filename = filename
         self.clusters = n_clusters
-    def fit(self, data, folder, limit=100):        
+
+    def fit(self, csv_reader, features_folder, limit_samples = np.inf, n_feature_from_sample = 10, n_jobs = 2, print_log = False):
+
         descriptors = None
-        for index, row in data.iterrows():
-            if index==limit:
+
+        for index, row in csv_reader.iterrows():
+
+            if index == limit_samples:
                 break
-            descriptor = np.load('./' + arrays_folder + str(row['image_id']) + '.npy')
-            descriptor = get_random_subarray(descriptor)
-            if index == 0: 
+
+            descriptor = np.load(features_folder + str(row['image_id']) + '.npy')
+            descriptor = random.shuffle(descriptor)[: n_feature_from_sample, :]            
+
+
+            if index == 0:
                 descriptors = descriptor
             else:                    
                 descriptors = np.vstack((descriptors, descriptor))
-            if index % 100 == 0:
-                print(index, 'samples done...')
-        print('clusterization...')
-        model = cluster.KMeans(n_clusters=self.clusters, n_jobs=2)
+            
+            if print_log and index % 1000 == 0: print(index, 'samples done...')
+                
+        if print_log: print('clusterization...')
+        
+        model = cluster.KMeans(n_clusters = self.clusters, n_jobs = n_jobs)
+
         model.fit(descriptors)
         joblib.dump(model, self.filename)
-        self.model = model
-    def transform(self, data, folder, samples=np.inf):
-        features = np.zeros((min(samples, data.shape[0]), self.clusters))
-        for index, row in data.iterrows():
-            if index==samples:
+
+        self.vocabulary = model
+
+    def transform(self, csv_reader, features_folder, limit_samples = np.inf, print_log = False):
+
+        features = np.zeros((min(limit_samples, csv_reader.shape[0]), self.clusters))
+
+        for index, row in csv_reader.iterrows():
+
+            if index == limit_samples:
                 break
-            descriptor = np.load('./' + arrays_folder + str(row['image_id']) + '.npy')
-            words = self.model.predict(descriptor)
+
+            descriptor = np.load(features_folder + str(row['image_id']) + '.npy')
+            words = self.vocabulary.predict(descriptor)
+
             for word in words:
                 features[index][word] += 1
-            if index % 100 == 0:
-                print(index, 'samples done...')
+
+            if print_log and index % 1000 == 0: print(index, 'samples done...')
+
         return features
 
-voc = bow(n_clusters = 50)
-print('train bow vocabulary?')
-answer = input()
-if answer == 'y':
-    voc.fit(train_data, train_data_folder, 1500)
+    def fit_transform(self, csv_reader, features_folder, limit_samples = np.inf, n_feature_from_sample = 10, n_jobs = 2, print_log = False):
 
-print('reading data...')
-X = voc.transform(train_data, train_data_folder)
-y = train_data['image_label'].values[:X.shape[0]].ravel()
+        self.fit(csv_reader, features_folder, limit_samples, n_feature_from_sample, n_jobs, print_log)
 
-model = ensemble.RandomForestClassifier(n_estimators=240, criterion='entropy', max_features=0.99, n_jobs=2)
-preds = model.fit(X, y).predict_proba(voc.transform(test_data, test_data_folder))[:, 1]
-test_data = test_data.drop('image_url', 1)
-test_data['image_label'] = preds
-test_data.to_csv(root_path + '/res.csv', index=False)
+        return self.transform(csv_reader, features_folder, limit_samples, print_log)
