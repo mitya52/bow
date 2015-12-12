@@ -1,0 +1,28 @@
+*******************************************************
+* Bag-of-words model for getting features from images *
+*******************************************************
+
+Now it uses SIFT keypoints detector and decriptor (and works very slow) + get features from grayscale images.
+
+============================================================
+
+1) bow (bow_filename = 'bag_of_words', model = 'kmeans', n_clusters = 50) - constructor
+	a) bow_filename - files with bow vocabulary;
+	b) model - model name;
+	c) n_clusters - number of words in vocabulary;
+
+2) fit (csv_filename, features_folder, limit_samples = np.inf, n_feature_from_sample = 10, print_log = False) - fits bow model
+	a) csv_filename - name of csv file with samples names in 'image_id';
+	b) features_folder - folder which contains features of samples (first, you must create this folder and features by transform_data);
+	c) limit_samples - bow will fit first min(limit_samples, all samples);
+	d) n_feature_from_sample - bow takes random n_feature_from_sample features to clusterization sample;
+	e) print_log - if True, it will print a log;
+
+3) transform (csv_filename, features_folder, limit_samples = np.inf, print_log = False) - transforms data with current model
+	parameters same with fit(); it returns bow features array with shape (min(limit_samples, number of samples), n_clusters);
+
+4) fit_transform (self, csv_filename, features_folder, limit_samples = np.inf, n_feature_from_sample = 10, print_log = False) - fits and transforms data
+	parameters same with fit();
+
+5) transform_data(csv_filename, samples_folder, features_folder, limit_samples = np.inf, print_log = False)
+	parameters same with fit();
